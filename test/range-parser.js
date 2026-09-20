@@ -222,6 +222,27 @@ describe('parseRange(len, str)', function () {
     })
   })
 
+
+  it('should not combine ranges by default', function () {
+    var range = parse(150, 'bytes=0-4,5-6,90-99')
+    assert.strictEqual(range.type, 'bytes')
+    assert.strictEqual(range.length, 3)
+    deepEqual(range[0], { start: 0, end: 4 })
+    deepEqual(range[1], { start: 5, end: 6 })
+    deepEqual(range[2], { start: 90, end: 99 })
+  })
+
+  it('should combine adjacent ranges with combine: true', function () {
+    var range = parse(100, 'bytes=0-9,10-19,50-60', { combine: true })
+    assert.strictEqual(range.length, 2)
+    deepEqual(range[0], { start: 0, end: 19 })
+    deepEqual(range[1], { start: 50, end: 60 })
+  })
+
+  it('should return -1 for an out-of-range open-ended start', function () {
+    assert.strictEqual(parse(200, 'bytes=200-'), -1)
+  })
+
   it('should ignore whitespace-only invalid ranges when valid present', function () {
     var range = parse(1000, 'bytes= , 0-10')
     assert.strictEqual(range.type, 'bytes')
