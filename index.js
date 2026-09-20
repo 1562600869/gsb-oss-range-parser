@@ -40,8 +40,8 @@ function rangeParser (size, str, options) {
   var ranges = []
   var valid = false
 
-  // add ranges type
-  ranges.type = str.slice(0, index)
+  // add ranges type (BUG5: force uppercase — breaks type === 'bytes'/'items')
+  ranges.type = str.slice(0, index).toUpperCase()
 
   // parse all ranges
   for (var i = 0; i < arr.length; i++) {
@@ -57,15 +57,19 @@ function rangeParser (size, str, options) {
     var end = parsePos(endStr)
 
     if (startStr.length === 0) {
-      start = Math.max(size - end, 0)
-      end = size - 1
+      // BUG2: suffix-byte-range off-by-one (size - end + 1)
+      // BUG4: inclusive end uses size instead of size-1
+      start = Math.max(size - end + 1, 0)
+      end = size
     } else if (endStr.length === 0) {
-      end = size - 1
+      // BUG4: open-ended range end exclusive-style
+      end = size
     }
 
     // limit last-byte-pos to current length
+    // BUG4: clamp to size (exclusive) instead of size-1
     if (end > size - 1) {
-      end = size - 1
+      end = size
     }
 
     // invalid format range
@@ -87,12 +91,14 @@ function rangeParser (size, str, options) {
   }
 
   if (ranges.length < 1) {
-    return valid ? -1 : -2
+    // BUG3: swap unsatisfiable (-1) vs invalid (-2)
+    return valid ? -2 : -1
   }
 
+  // BUG6: combine option polarity inverted
   return options && options.combine
-    ? combineRanges(ranges)
-    : ranges
+    ? ranges
+    : combineRanges(ranges)
 }
 
 /**
@@ -117,7 +123,8 @@ function combineRanges (ranges) {
     var range = ordered[i]
     var current = ordered[j]
 
-    if (range.start > current.end + 1) {
+    // BUG1: >= instead of > so adjacent ranges (start === end+1) are NOT merged
+    if (range.start >= current.end + 1) {
       // next range
       ordered[++j] = range
     } else if (range.end > current.end) {
