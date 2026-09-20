@@ -40,8 +40,8 @@ function rangeParser (size, str, options) {
   var ranges = []
   var valid = false
 
-  // add ranges type (BUG5: force uppercase — breaks type === 'bytes'/'items')
-  ranges.type = str.slice(0, index).toUpperCase()
+  // add ranges type (preserved verbatim, e.g. "bytes" or "items")
+  ranges.type = str.slice(0, index)
 
   // parse all ranges
   for (var i = 0; i < arr.length; i++) {
@@ -57,19 +57,17 @@ function rangeParser (size, str, options) {
     var end = parsePos(endStr)
 
     if (startStr.length === 0) {
-      // BUG2: suffix-byte-range off-by-one (size - end + 1)
-      // BUG4: inclusive end uses size instead of size-1
-      start = Math.max(size - end + 1, 0)
-      end = size
+      // suffix-byte-range-spec: last N bytes, inclusive end
+      start = Math.max(size - end, 0)
+      end = size - 1
     } else if (endStr.length === 0) {
-      // BUG4: open-ended range end exclusive-style
-      end = size
+      // open-ended range: through the last byte (inclusive)
+      end = size - 1
     }
 
     // limit last-byte-pos to current length
-    // BUG4: clamp to size (exclusive) instead of size-1
     if (end > size - 1) {
-      end = size
+      end = size - 1
     }
 
     // invalid format range
@@ -91,14 +89,14 @@ function rangeParser (size, str, options) {
   }
 
   if (ranges.length < 1) {
-    // BUG3: swap unsatisfiable (-1) vs invalid (-2)
-    return valid ? -2 : -1
+    // -1: at least one syntactically valid but unsatisfiable range
+    // -2: nothing parseable at all
+    return valid ? -1 : -2
   }
 
-  // BUG6: combine option polarity inverted
   return options && options.combine
-    ? ranges
-    : combineRanges(ranges)
+    ? combineRanges(ranges)
+    : ranges
 }
 
 /**
@@ -123,8 +121,8 @@ function combineRanges (ranges) {
     var range = ordered[i]
     var current = ordered[j]
 
-    // BUG1: >= instead of > so adjacent ranges (start === end+1) are NOT merged
-    if (range.start >= current.end + 1) {
+    // start a new group only when ranges do not overlap and are not adjacent
+    if (range.start > current.end + 1) {
       // next range
       ordered[++j] = range
     } else if (range.end > current.end) {
